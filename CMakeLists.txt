@@ -40,6 +40,9 @@ add_executable(${CMAKE_PROJECT_NAME})
 # Add STM32CubeMX generated sources
 add_subdirectory(CubeMX_BSP/cmake/stm32cubemx)
 
+# TSL: TemporarySTM32Library (algorithms + device drivers)
+add_subdirectory(TSL)
+
 # TemporarySTM32Library: Algorithm + Device modules
 file(GLOB_RECURSE TEMP_LIB_SRC
     TemporarySTM32Library/Algorithm/src/*.c
@@ -109,4 +112,5 @@ list(REMOVE_ITEM CMAKE_C_IMPLICIT_LINK_LIBRARIES ob)
 target_link_libraries(${CMAKE_PROJECT_NAME}
     stm32cubemx
     TemporarySTM32Library
+    tsl
 )
