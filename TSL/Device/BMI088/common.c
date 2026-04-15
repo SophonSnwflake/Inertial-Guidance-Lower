@@ -14,6 +14,8 @@
 #include "spi.h"
 #include "i2c.h"
 
+extern void MX_I2C1_Init(void);
+
 /*
  * CS pin assignment — must match CubeMX GPIO config:
  *   PA4  →  BMI088_ACCEL_CS  (accelerometer)
@@ -49,6 +51,46 @@ static inline void cs_high(uint8_t dev_idx)
 
 /******************************************************************************/
 /*!                I2C read / write                                            */
+
+/* GPIO-level I2C bus recovery: clock out 9 pulses on SCL to unstick any slave
+ * holding SDA low, then generate a STOP, then re-init the peripheral.
+ * Call this once before the first I2C transaction.                          */
+static void i2c_bus_recovery(void)
+{
+    GPIO_InitTypeDef g = {0};
+    __HAL_RCC_GPIOB_CLK_ENABLE();
+
+    /* Temporarily switch PB6(SCL) PB7(SDA) to open-drain GPIO output */
+    g.Pin   = GPIO_PIN_6 | GPIO_PIN_7;
+    g.Mode  = GPIO_MODE_OUTPUT_OD;
+    g.Pull  = GPIO_NOPULL;
+    g.Speed = GPIO_SPEED_FREQ_LOW;
+    HAL_GPIO_Init(GPIOB, &g);
+
+    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_6 | GPIO_PIN_7, GPIO_PIN_SET);
+    HAL_Delay(1);
+
+    /* 9 SCL pulses — enough to clock out any in-progress byte */
+    for (int i = 0; i < 9; i++)
+    {
+        HAL_GPIO_WritePin(GPIOB, GPIO_PIN_6, GPIO_PIN_RESET);
+        HAL_Delay(1);
+        HAL_GPIO_WritePin(GPIOB, GPIO_PIN_6, GPIO_PIN_SET);
+        HAL_Delay(1);
+    }
+
+    /* STOP condition: SDA low → SCL high → SDA high */
+    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_7, GPIO_PIN_RESET);
+    HAL_Delay(1);
+    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_6, GPIO_PIN_SET);
+    HAL_Delay(1);
+    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_7, GPIO_PIN_SET);
+    HAL_Delay(1);
+
+    /* Re-init I2C peripheral (also restores PB6/PB7 to AF_OD) */
+    HAL_I2C_DeInit(&hi2c1);
+    MX_I2C1_Init();
+}
 
 BMI08_INTF_RET_TYPE bmi08_i2c_read(uint8_t reg_addr, uint8_t *reg_data, uint32_t len, void *intf_ptr)
 {
@@ -140,7 +182,9 @@ int8_t bmi08_interface_init(struct bmi08_dev *bmi08dev, uint8_t intf)
 
     if (intf == BMI08_I2C_INTF)
     {
-        /* hi2c1 is already initialised by MX_I2C1_Init() in main.c */
+        /* Recover bus first in case a previous session left a slave holding SDA */
+        i2c_bus_recovery();
+
         bmi08dev->read  = bmi08_i2c_read;
         bmi08dev->write = bmi08_i2c_write;
         bmi08dev->intf  = BMI08_I2C_INTF;

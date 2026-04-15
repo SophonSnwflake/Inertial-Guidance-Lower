@@ -16,6 +16,9 @@ public:
     float m_gyrox;
     float m_gyroy;
     float m_gyroz;
+    float m_accelx;
+    float m_accely;
+    float m_accelz;
 
 public:
     void imuInit();
