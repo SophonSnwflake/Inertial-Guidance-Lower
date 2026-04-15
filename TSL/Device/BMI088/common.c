@@ -59,7 +59,7 @@ BMI08_INTF_RET_TYPE bmi08_i2c_read(uint8_t reg_addr, uint8_t *reg_data, uint32_t
                                                  I2C_MEMADD_SIZE_8BIT,
                                                  reg_data,
                                                  (uint16_t)len,
-                                                 HAL_MAX_DELAY);
+                                                 100);
     return (status == HAL_OK) ? BMI08_OK : BMI08_E_COM_FAIL;
 }
 
@@ -72,7 +72,7 @@ BMI08_INTF_RET_TYPE bmi08_i2c_write(uint8_t reg_addr, const uint8_t *reg_data, u
                                                   I2C_MEMADD_SIZE_8BIT,
                                                   (uint8_t *)reg_data,
                                                   (uint16_t)len,
-                                                  HAL_MAX_DELAY);
+                                                  100);
     return (status == HAL_OK) ? BMI08_OK : BMI08_E_COM_FAIL;
 }
 
@@ -82,23 +82,28 @@ BMI08_INTF_RET_TYPE bmi08_i2c_write(uint8_t reg_addr, const uint8_t *reg_data, u
 BMI08_INTF_RET_TYPE bmi08_spi_read(uint8_t reg_addr, uint8_t *reg_data, uint32_t len, void *intf_ptr)
 {
     uint8_t dev_idx = *(uint8_t *)intf_ptr;
-    uint8_t tx_addr = reg_addr | 0x80;
+
+    /*
+     * Send address + receive data in ONE TransmitReceive call.
+     * tx_buf: [addr|0x80, 0x00 * len]
+     * rx_buf: [dummy_during_addr, data[0], data[1], ...]
+     * We copy rx_buf[1..len] → reg_data, so the dummy byte received during
+     * address transmission is automatically discarded. This is required for
+     * the BMI088 accel (dummy_byte=1) and is harmless for the gyro (dummy_byte=0).
+     */
+    uint8_t tx_buf[65];   /* addr(1) + max data(64) */
+    uint8_t rx_buf[65];
+
+    if (len > 64) return BMI08_E_COM_FAIL;
+
+    tx_buf[0] = reg_addr;   /* driver already set bit 7 for SPI read */
+    memset(tx_buf + 1, 0x00, len);
 
     cs_low(dev_idx);
-    HAL_SPI_Transmit(&hspi1, &tx_addr, 1, HAL_MAX_DELAY);
-
-    /* Dummy clocks during data phase — HAL needs a TX buffer of equal length */
-    uint8_t dummy[64];
-    uint32_t remaining = len;
-    while (remaining > 0)
-    {
-        uint16_t chunk = (remaining > sizeof(dummy)) ? (uint16_t)sizeof(dummy) : (uint16_t)remaining;
-        memset(dummy, 0x00, chunk);
-        HAL_SPI_TransmitReceive(&hspi1, dummy, reg_data, chunk, HAL_MAX_DELAY);
-        reg_data  += chunk;
-        remaining -= chunk;
-    }
+    HAL_SPI_TransmitReceive(&hspi1, tx_buf, rx_buf, (uint16_t)(len + 1), 100);
     cs_high(dev_idx);
+
+    memcpy(reg_data, rx_buf + 1, len);
 
     return BMI08_OK;
 }
@@ -108,8 +113,8 @@ BMI08_INTF_RET_TYPE bmi08_spi_write(uint8_t reg_addr, const uint8_t *reg_data, u
     uint8_t dev_idx = *(uint8_t *)intf_ptr;
 
     cs_low(dev_idx);
-    HAL_SPI_Transmit(&hspi1, &reg_addr, 1, HAL_MAX_DELAY);
-    HAL_SPI_Transmit(&hspi1, (uint8_t *)reg_data, (uint16_t)len, HAL_MAX_DELAY);
+    HAL_SPI_Transmit(&hspi1, &reg_addr, 1, 100);
+    HAL_SPI_Transmit(&hspi1, (uint8_t *)reg_data, (uint16_t)len, 100);
     cs_high(dev_idx);
 
     return BMI08_OK;
@@ -121,19 +126,8 @@ BMI08_INTF_RET_TYPE bmi08_spi_write(uint8_t reg_addr, const uint8_t *reg_data, u
 void bmi08_delay_us(uint32_t period, void *intf_ptr)
 {
     (void)intf_ptr;
-
-    /* Enable DWT cycle counter on first call */
-    if (!(CoreDebug->DEMCR & CoreDebug_DEMCR_TRCENA_Msk))
-    {
-        CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk;
-        DWT->CYCCNT = 0;
-        DWT->CTRL  |= DWT_CTRL_CYCCNTENA_Msk;
-    }
-
-    uint32_t start = DWT->CYCCNT;
-    uint32_t ticks = period * (SystemCoreClock / 1000000U);
-    while ((DWT->CYCCNT - start) < ticks)
-        ;
+    /* Round up to ms; sufficient precision for BMI088 init delays */
+    HAL_Delay((period + 999u) / 1000u);
 }
 
 /******************************************************************************/

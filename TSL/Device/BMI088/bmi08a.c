@@ -355,8 +355,11 @@ int8_t bmi08a_init(struct bmi08_dev *dev)
             /* Set dummy byte in case of SPI interface */
             dev->dummy_byte = BMI08_ENABLE;
 
-            /* Dummy read of Chip-ID in SPI mode */
+            /* Dummy read of Chip-ID in SPI mode to switch accel from I2C to SPI */
             rslt = set_get_regs(BMI08_REG_ACCEL_CHIP_ID, &chip_id, BMI08_REG_ACCEL_CHIP_ID_LENGTH, dev, GET_FUNC);
+
+            /* Wait for the I2C->SPI mode switch to complete (datasheet: >=450 us) */
+            dev->delay_us(1000, dev->intf_ptr_accel);
         }
         else
         {

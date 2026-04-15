@@ -10,11 +10,12 @@ public:
 
 public:
     bmi08_sensor_data m_accelData;
+    bmi08_sensor_data m_gyroData;
     bmi08_dev m_bmi08;
     int8_t m_rslt;
-    float m_accelx;
-    float m_accely;
-    float m_accelz;
+    float m_gyrox;
+    float m_gyroy;
+    float m_gyroz;
 
 public:
     void imuInit();
