@@ -1,6 +1,7 @@
 #include "crt_imu.h"
 #include "common.h"
 #include "para_imu.h"
+#include "main.h"
 #include <cstdio>
 #include <cmath>
 
@@ -84,7 +85,8 @@ void IMU::imuLoop()
         m_accelz = lsb_to_mps2(m_accelData.z, 6.0f, 16);
     }
 
-    printf("gx=%.6f gy=%.6f gz=%.6f ax=%.6f ay=%.6f az=%.6f \r\n",
+    printf("$IMU,%lu,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f\r\n",
+           HAL_GetTick(),
            m_gyrox, m_gyroy, m_gyroz,
            m_accelx, m_accely, m_accelz);
 }
