@@ -3,7 +3,7 @@
 # 自动编译并烧录 STM32 项目，支持 DAP-Link / ST-Link
 
 # ========== 配置区（根据你的项目修改这里）==========
-PROJECT_DIR="/home/snowflake/Project/InertialGuidance/TestforSTM32F411"        # 项目根目录
+PROJECT_DIR="/home/snowflake/Development/Personal/Inertial-Guidance-Lower"        # 项目根目录
 BUILD_DIR="$PROJECT_DIR/build/Debug"             # 编译输出目录
 
 # 烧录器选择（取消注释你要用的那一行）

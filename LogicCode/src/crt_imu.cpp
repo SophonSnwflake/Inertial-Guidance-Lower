@@ -2,6 +2,7 @@
 #include "common.h"
 #include "para_imu.h"
 #include "main.h"
+#include "tim.h"
 #include <cstdio>
 #include <cmath>
 
@@ -67,6 +68,8 @@ float IMU::lsb_to_dps(int16_t val, float dps, uint8_t bit_width)
 
 void IMU::imuLoop()
 {
+    uint32_t timestamp1 = __HAL_TIM_GET_COUNTER(&htim2);
+
     /* Gyroscope */
     m_rslt = bmi08g_get_data(&m_gyroData, &m_bmi08);
     if (m_rslt == BMI08_OK)
@@ -84,9 +87,10 @@ void IMU::imuLoop()
         m_accely = lsb_to_mps2(m_accelData.y, 6.0f, 16);
         m_accelz = lsb_to_mps2(m_accelData.z, 6.0f, 16);
     }
+    uint32_t timestamp2 = __HAL_TIM_GET_COUNTER(&htim2);
 
     printf("$IMU,%lu,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f\r\n",
-           HAL_GetTick(),
+           timestamp1 + (timestamp2 - timestamp1) / 2,
            m_gyrox, m_gyroy, m_gyroz,
            m_accelx, m_accely, m_accelz);
 }
