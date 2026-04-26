@@ -3,13 +3,21 @@
 #include "para_imu.h"
 #include "main.h"
 #include "tim.h"
+#include "usart.h"
+#include "drv_uart.h"
+#include "tsk_isr.h"
+#include "cmsis_compiler.h"
 #include <cstdio>
 #include <cmath>
+#include <cstring>
+#include "dvc_gnss.hpp"
+
 
 void IMU::imuInit()
 {
     bmi08_interface_init(&m_bmi08, BMI08_I2C_INTF);
     init_bmi08(&m_bmi08);
+    UART_Init(&huart1, GNSSCallBack, 500);
 }
 
 void IMU::init_bmi08(struct bmi08_dev *bmi08dev)
@@ -89,8 +97,45 @@ void IMU::imuLoop()
     }
     uint32_t timestamp2 = __HAL_TIM_GET_COUNTER(&htim2);
 
-    printf("$IMU,%lu,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f\r\n",
-           timestamp1 + (timestamp2 - timestamp1) / 2,
-           m_gyrox, m_gyroy, m_gyroz,
-           m_accelx, m_accely, m_accelz);
+    // printf("$IMU,%lu,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f\r\n",
+    //        timestamp1 + (timestamp2 - timestamp1) / 2,
+    //        m_gyrox, m_gyroy, m_gyroz,
+    //        m_accelx, m_accely, m_accelz);
 }
+
+void IMU::receiveGNSSDataFromISR(const uint8_t *rxData, uint16_t length)
+{
+    if (length > GNSS_COPY_BUFFER_SIZE)
+    {
+        length = GNSS_COPY_BUFFER_SIZE;
+    }
+    memcpy(m_gnssRxCopy, rxData, length);
+    m_gnssRxLen = length;
+}
+
+void IMU::gnssLoop()
+{
+    if (m_gnssRxLen == 0)
+    {
+        return;
+    }
+
+    static uint8_t local[GNSS_COPY_BUFFER_SIZE];
+    uint16_t n;
+
+    __disable_irq();
+    n = m_gnssRxLen;
+    if (n > GNSS_COPY_BUFFER_SIZE)
+    {
+        n = GNSS_COPY_BUFFER_SIZE;
+    }
+    memcpy(local, m_gnssRxCopy, n);
+    m_gnssRxLen = 0;
+    __enable_irq();
+
+    if (n > 0)
+    {
+        printf("%.*s", (int)n, (const char *)local);
+    }
+}
+

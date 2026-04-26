@@ -19,15 +19,23 @@ file(GLOB_RECURSE TSL_DEVICE_SOURCES
     "Device/*.cpp"
 )
 
+file(GLOB_RECURSE TSL_DRIVER_SOURCES
+    "Driver/src/*.c"
+    "Driver/src/*.cpp"
+)
+
 target_sources(${PROJECT_NAME} PRIVATE
     ${TSL_ALGORITHM_SOURCES}
     ${TSL_DEVICE_SOURCES}
+    ${TSL_DRIVER_SOURCES}
 )
 
 target_include_directories(${PROJECT_NAME} PUBLIC
     include
     Algorithm/inc
     Device/BMI088
+    Device/GNSS/inc
+    Driver/inc
 )
 
 target_compile_definitions(${PROJECT_NAME} PUBLIC
